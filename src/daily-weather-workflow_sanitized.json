@@ -1,0 +1,418 @@
+{
+  "name": "daily-weather-workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -80,
+        32
+      ],
+      "id": "d3860a5c-fde2-4b9b-82b3-753e5f7869bd",
+      "name": "Daily Trigger"
+    },
+    {
+      "parameters": {
+        "url": "=https://geocoding-api.open-meteo.com/v1/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "name",
+              "value": "={{$json.city}}"
+            },
+            {
+              "name": "count",
+              "value": "1"
+            },
+            {
+              "name": "language",
+              "value": "en"
+            },
+            {
+              "name": "format",
+              "value": "json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        528,
+        48
+      ],
+      "id": "321ec02d-2b49-4e93-9395-eea24381c563",
+      "name": "Find City"
+    },
+    {
+      "parameters": {
+        "useCustomSchema": true,
+        "tableId": "weather_logs",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "run_at",
+              "fieldValue": "={{ $json.run_at }}"
+            },
+            {
+              "fieldId": "city",
+              "fieldValue": "={{ $json.city }}"
+            },
+            {
+              "fieldId": "temperature",
+              "fieldValue": "={{ $json.temperature }}"
+            },
+            {
+              "fieldId": "temperature_unit",
+              "fieldValue": "={{ $json.temperature_unit }}"
+            },
+            {
+              "fieldId": "condition",
+              "fieldValue": "={{ $json.condition }}"
+            },
+            {
+              "fieldId": "humidity",
+              "fieldValue": "={{ $json.humidity }}"
+            },
+            {
+              "fieldId": "wind_speed",
+              "fieldValue": "={{ $json.wind_speed }}"
+            },
+            {
+              "fieldId": "alert_type",
+              "fieldValue": "={{ $json.alert_type }}"
+            },
+            {
+              "fieldId": "raw_response",
+              "fieldValue": "={{$json.raw_response}}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        48
+      ],
+      "id": "a447e859-4945-405e-9502-79e6670c078f",
+      "name": "Save Log"
+    },
+    {
+      "parameters": {
+        "fromEmail": "your.email@example.com ",
+        "toEmail": "={{ $json.recipient_email }}",
+        "subject": "= Daily Weather – {{ $json.report_date }} ({{ $json.city_count }} cities)",
+        "html": "= {{ $json.summary_html }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1488,
+        48
+      ],
+      "id": "c3e5805c-a5ed-483e-ab46-dfcd32930a92",
+      "name": "Send Report",
+      "webhookId": "1a66b843-0d28-4b8a-8407-cff6f41eceb9"
+    },
+    {
+      "parameters": {
+        "jsCode": "const src = $json;                 \nconst q = src.query ?? {};        \n\n// Pick unit + email from either Set Inputs (daily) or webhook query (override)\nconst temp_unit = String(q.unit ?? src.temp_unit ?? \"C\").toUpperCase();\nconst recipient_email = q.email ?? src.recipient_email ?? null;\n\n// Build the city list \nlet cities = [];\n\n// cities from query\nif (q.cities) cities = String(q.cities).split(\",\").map(s => s.trim()).filter(Boolean);\n\n// cities from Set Inputs (array) or string\nelse if (Array.isArray(src.cities)) cities = src.cities.map(String);\nelse if (src.cities) cities = String(src.cities).split(\",\").map(s => s.trim()).filter(Boolean);\n\n// fallback to single city\nif (cities.length === 0 && (q.city || src.city)) cities = [String(q.city ?? src.city).trim()];\n\n// de-dupe\ncities = [...new Set(cities.filter(Boolean))];\n\nif (!cities.length) throw new Error(\"No city/cities provided.\");\nif (!recipient_email) throw new Error(\"Missing recipient_email (or ?email=...)\");\n\nreturn cities.map(city => ({\n  json: {\n    city,\n    temp_unit,\n    recipient_email,\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        48
+      ],
+      "id": "468912a6-f524-46f1-8488-aef126e97db5",
+      "name": "Normalize Inputs"
+    },
+    {
+      "parameters": {
+        "path": "daily-weather",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        112,
+        144
+      ],
+      "id": "fd6220b3-111b-47fa-8b54-729f6df233f8",
+      "name": "Webhook Trigger",
+      "webhookId": "8f444ca1-5c1c-4e23-9d53-e5db882d8a6e"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "02ab23ce-fdf9-4061-b4b6-dc564af51480",
+              "name": "cities",
+              "value": "[\"London\",\"Raleigh\",\"New York\"]",
+              "type": "array"
+            },
+            {
+              "id": "c1498d3b-2c69-4a7d-9b44-ff1e171f7f0b",
+              "name": "city",
+              "value": "Accra",
+              "type": "string"
+            },
+            {
+              "id": "344f2695-993a-4172-ab00-7ba2ae6e1a0d",
+              "name": "recipient_email",
+              "value": "your.email@example.com",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        128,
+        -64
+      ],
+      "id": "be589e96-9a6a-4632-89de-9e76b8fcb722",
+      "name": "Input Config"
+    },
+    {
+      "parameters": {
+        "format": "imperial",
+        "locationSelection": "coordinates",
+        "latitude": "={{ $json.results[0].latitude }}",
+        "longitude": "={{ $json.results[0].longitude }}"
+      },
+      "type": "n8n-nodes-base.openWeatherMap",
+      "typeVersion": 1,
+      "position": [
+        736,
+        48
+      ],
+      "id": "35593711-be3b-4b90-9009-117dffdb8274",
+      "name": "OpenWeatherMap"
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = (() => {\n  try { return $items(\"Normalize Inputs\")[0]?.json ?? {}; } catch { return {}; }\n})();\n\nconst unit = String(cfg.unit ?? cfg.temp_unit ?? \"C\").toUpperCase();\nconst recipient_email = cfg.email ?? cfg.recipient_email ?? null;\n\nconst items = $input.all();\n\nreturn items.map(({ json }) => {\n  const condition =\n    json.weather?.[0]?.description ||\n    json.weather?.[0]?.main ||\n    \"Unknown\";\n\n  const condLower = condition.toLowerCase();\n\n  // OWM usually returns temp in F if you used \"imperial\"\n  const tempF = Number(json.main?.temp);\n  const tempC = Number.isFinite(tempF) ? (tempF - 32) * 5/9 : null;\n\n  const temperature =\n    unit === \"C\" && tempC !== null ? Number(tempC.toFixed(1)) :\n    Number.isFinite(tempF) ? Number(tempF.toFixed(1)) :\n    null;\n\n  let alert_type = \"none\";\n  if (/(rain|snow|drizzle|storm|thunder)/.test(condLower)) alert_type = \"precipitation\";\n  else if ((unit === \"C\" && temperature > 32) || (unit === \"F\" && temperature > 90)) alert_type = \"heat\";\n  else if ((unit === \"C\" && temperature < 0) || (unit === \"F\" && temperature < 32)) alert_type = \"frost\";\n\n  const run_at = new Date((json.dt ?? Date.now()) * 1000).toISOString();\n  const subject_date = run_at.slice(0, 10);\n\n  return {\n    json: {\n      run_at,\n      city: json.name,\n      temperature,\n      temperature_unit: unit,\n      condition,\n      humidity: Number(json.main?.humidity ?? null),\n      wind_speed: Number(json.wind?.speed ?? null),\n      alert_type,\n      recipient_email,\n      subject_date,\n      raw_response: json.raw_response ?? json\n    },\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        928,
+        48
+      ],
+      "id": "14b9d357-b640-4149-9c18-30b542d4492f",
+      "name": "Prep Record"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate all city items into ONE email payload\nconst rows = $input.all().map(i => i.json);\n\n// pick recipient + date from first item \nconst recipient_email = $('Prep Record').first().json.recipient_email || null;\nconst report_date = $('Prep Record').first().json.subject_date \nif (!recipient_email) throw new Error(\"Missing recipient_email on items\");\n\nconst linesHtml = rows.map(r => `\n  <tr>\n    <td><b>${r.city}</b></td>\n    <td>${r.temperature} ${r.temperature_unit}</td>\n    <td>${r.condition}</td>\n    <td>${r.humidity}%</td>\n    <td>${r.wind_speed} km/h</td>\n    <td><b>${(r.alert_type || \"none\").toUpperCase()}</b></td>\n  </tr>\n`).join(\"\");\n\nconst summary_html = `\n  <h2>Daily Weather – ${report_date}</h2>\n  <table border=\"1\" cellspacing=\"0\" cellpadding=\"6\">\n    <thead>\n      <tr>\n        <th>City</th><th>Temp</th><th>Condition</th><th>Humidity</th><th>Wind</th><th>Alert</th>\n      </tr>\n    </thead>\n    <tbody>${linesHtml}</tbody>\n  </table>\n`;\n\nreturn [{\n  json: {\n    recipient_email,\n    report_date,\n    city_count: rows.length,\n    summary_html,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        48
+      ],
+      "id": "993f505b-84d7-4e11-8e39-a82bb48e7a1b",
+      "name": "Aggregate Report"
+    },
+    {
+      "parameters": {
+        "content": "Replace your.email@example.com with a recipient email",
+        "width": 150
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        112,
+        -256
+      ],
+      "id": "ecc1783e-4792-4033-bffe-77e0ecaef50c",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "Get an OpenWetherMap API [Access Token](https://openweathermap.org/)",
+        "width": 150
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        704,
+        -144
+      ],
+      "id": "3d824791-b4d1-440a-9f26-f423eecd17e9",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "Create  a Supabase project [Project](https://supabase.com/) and get a Service Role Secret",
+        "width": 150
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1088,
+        -128
+      ],
+      "id": "1035d442-a92b-485a-bbba-d44390674219",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "Set an SMTP account  by Google **App Password** (no spaces)",
+        "width": 150
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1472,
+        -128
+      ],
+      "id": "339b3270-14a5-435b-8c90-1d9745dcd7ea",
+      "name": "Sticky Note3"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily Trigger": {
+      "main": [
+        [
+          {
+            "node": "Input Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find City": {
+      "main": [
+        [
+          {
+            "node": "OpenWeatherMap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Log": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Inputs": {
+      "main": [
+        [
+          {
+            "node": "Find City",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalize Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Input Config": {
+      "main": [
+        [
+          {
+            "node": "Normalize Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenWeatherMap": {
+      "main": [
+        [
+          {
+            "node": "Prep Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Report": {
+      "main": [
+        []
+      ]
+    },
+    "Prep Record": {
+      "main": [
+        [
+          {
+            "node": "Save Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Report": {
+      "main": [
+        [
+          {
+            "node": "Send Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "c1198928-a837-4b0d-b6aa-8fbe9f0deeb9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "94e489e2f4f0437f8e4e60d9e3fc4614e17125cc250a6682729b53fde154239d"
+  },
+  "id": "ayD5DcvkXy6OLS4t",
+  "tags": []
+}
