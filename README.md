@@ -28,20 +28,22 @@ logs results to Supabase, and emails a daily summary.
 
 2. Create a table named `weather_logs` in the public schema.
 
-Table schema
+> You can do this in Supabase -> SQL Editor
 
-Recommended columns (Postgres):
-
-- `id` uuid (default)
-- `run_at` timestamptz
-- `city` text
-- `temperature` float8
-- `temperature_unit` text
-- `condition` text
-- `humidity` int4
-- `wind_speed` float8
-- `alert_type` text
-- `raw_response` jsonb
+```sql
+create table if not exists public.weather_logs (
+  id uuid primary key default gen_random_uuid(),
+  run_at timestamptz not null,
+  city text not null,
+  temperature double precision,
+  temperature_unit text,
+  condition text,
+  humidity int,
+  wind_speed double precision,
+  alert_type text,
+  raw_response jsonb
+);
+```
 
 ### Credentials
 
@@ -53,8 +55,7 @@ Required:
 - Supabase API Key:
 
 > Notes:
-
-- If RLS is enabled on the table, you must add policies or use a service role key.
+ If RLS is enabled on the table, you must add policies or use a service role key.
 
 ---
 
@@ -80,11 +81,11 @@ From the UI Menu:
 - Open your n8n editor.
 - In the top navigation bar, click the three dots (ellipsis) in the upper-right corner.
 - Select Import from File from the dropdown menu.
-- Choose the workflow's JSON file from your computer and open it to import
+- Choose the [workflow's JSON file](src/daily-weather-workflow_sanitized.json) from your computer and open it to import
 
 ### Run (Daily)
 
-- Enable workflow
+- Enable workflow by following above config
 - Daily Trigger runs automatically using the default input config (cities + unit + recipient)
 
 ![output](img/daily_trigger_3.png)
@@ -92,7 +93,7 @@ From the UI Menu:
 ### Run (Webhook)
 
 Call:
-`https://your.app.n8n.cloud/webhook-test/daily-weather?cities=London,Seattle&unit=C&email=your.email@example.com`
+`https://ofosu.app.n8n.cloud/webhook-test/daily-weather?cities=London,Seattle&unit=C&email=your.email@example.com`
 
 Parameters:
 
@@ -123,4 +124,4 @@ See [`email.png`](img/email.png) for the final email.
 
 ## 🛡️ Security Notes
 
-> Note: The attached workflow .json is sanitized—no real keys or passwords are included. Configure your own credentials after cloning repo. 
+> Note: The attached [workflow .json](src/daily-weather-workflow_sanitized.json) is sanitized—no real keys or passwords are included. Configure your own credentials after cloning repo. 
